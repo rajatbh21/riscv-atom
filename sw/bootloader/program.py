@@ -42,7 +42,7 @@ class AtomProgrammer:
             self.contents = contents
 
 
-    def __init__(self, port:str, baud:Baud, file:str, iformat:str, base_addr:int, verbose_flag:bool=False, debug_flag:bool=False, txdelay:int=0.05):
+    def __init__(self, port:str, baud:Baud, file:str, iformat:str, base_addr:int, verbose_flag:bool=False, debug_flag:bool=False, txdelay:int=0.07):
         ## initialize atom programmer
         self._port = port
         self._baud = baud
@@ -117,21 +117,33 @@ class AtomProgrammer:
                     pass
 
             sleep(self._txdelay)
+        
+        if self._verbose_flag and not self._debug_flag: #complete progress bar
+            self.__progress(100, 100)
         print()
         return True
 
 
     def __wait_for_ack(self)->bool:
         ## wait for acknowledgement from device
-        byte = self._ser.read()
-        
-        if self._debug_flag:
-            print('ACK recieved ', byte)
+        byte = '\0'
+        while True:
+            byte = self._ser.read()
 
-        if byte == self.ACK_BYTE:
-            return True
-        else:
-            return False
+            if byte != self.ACK_BYTE:
+                print(str(byte))
+            else:
+                break
+
+        return True
+        
+        # if self._debug_flag:
+        #     print('ACK recieved ', byte)
+
+        # if byte == self.ACK_BYTE:
+        #     return True
+        # else:
+        #     return False
 
     
     def __exit(self, reason:str):
@@ -154,7 +166,73 @@ class AtomProgrammer:
             return [self.Section(base, len(contents), contents)]
         
         elif self._iformat == 'vhex':
-            pass
+
+            # read file
+            f = open(self._file, 'r')
+            fcontents =f.readlines()
+            f.close()
+
+            if len(fcontents) == 0:
+                return []
+
+            # initialize array of sections
+            sections = []
+            
+            currsec = None
+            addr = 0x00000000
+            size = 0
+            content = []
+
+            # header address marker available?
+            if fcontents[0][0] != '@':
+                fcontents = ['@00000000'] + fcontents   # add it
+
+            # iterate over lines
+            for i in range(len(fcontents)):
+                line = fcontents[i].strip()
+
+                # skip blank lines
+                if line == '':
+                    continue
+
+                # check address markers
+                if line[0] == '@':
+
+                    if currsec != None:     # not first @
+                        currsec.size = size
+                        currsec.base = addr
+                        currsec.contents = content
+                        sections += [currsec]
+
+                    size = 0
+                    content = []
+                    
+                    # get address
+                    addr = int(line[1:], 16)
+                    
+                    # create new section                    
+                    currsec = self.Section(0, 0, [])
+                    continue
+
+                else:
+                    byts = line.split(' ')
+                    size += len(byts)
+                    
+                    for b in byts:
+                        b = int(b, 16).to_bytes(1, 'little')
+                        content += [b]
+
+                    # content += bytes
+            
+            # push last section (whose end is marked by end of the file)
+            if currsec != None:
+                currsec.size = size
+                currsec.base = addr
+                currsec.contents = content
+                sections += [currsec]
+
+            
+            return sections
 
 
     def program(self, exit=True):
@@ -174,15 +252,15 @@ class AtomProgrammer:
 
         def start_task(task:str):
             if(self._verbose_flag):
-                print(style.CYAN+'>> '+task+style.RESET)
+                print(style.YELLOW+'>> '+task+style.RESET)
         
         def start_subtask(task:str):
             if(self._verbose_flag):
-                print(style.YELLOW+'- '+task+style.RESET)
+                print(style.CYAN+'- '+task+style.RESET)
 
         def end_task(lines:int=1):
             if(self._verbose_flag):
-                print('\033['+str(lines)+'A'+'\033[30C'+'Done!')
+                print('\033['+str(lines)+'A'+'\033[35C'+'Done!')
 
         def check_ack():
             if self.__wait_for_ack() == False:
@@ -203,7 +281,7 @@ class AtomProgrammer:
         # ----- program sections -----
         for i in range(len(sections)):
             s = sections[i]
-            start_task('Programming Section['+str(i)+']...')
+            start_task('Programming Section['+str(i+1)+']...')
             
             # send copy command
             start_subtask('Sending copy command...')
@@ -267,4 +345,4 @@ if __name__ == "__main__":
 
     # Program
     if args.verbose and ap.program():
-        print(style.YELLOW, 'Programming Successful!!', style.RESET)
+        print(style.GREEN, 'Programming Successful!!', style.RESET)

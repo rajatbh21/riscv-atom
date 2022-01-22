@@ -7,12 +7,11 @@
 #define DELAY_MS 1200
 #define TIMEOUT 2000 * DELAY_MS // 2 sec
 
+#define KEY_BYTE 'p'
+#define ACK_BYTE '.'
 
-// Magic Byte
-#define KEYBYTE 'p'
-
-// ACK Byte
-#define ACK '.'
+#define CMD_COPY 'c'
+#define CMD_EXIT 'x'
 
 
 // sleep (time in ticks)
@@ -50,19 +49,22 @@ void bootloader()
 {   
     ////////////////// INITIALIZATION //////////////////
     // Set Baud
-    int cd_reg_val = (CLK_FREQ/BAUD)-2;
-    *((volatile int*) UART_CD_REG_ADDR) = cd_reg_val;
+    *((volatile int*) UART_CD_REG_ADDR) = (CLK_FREQ/BAUD)-2;
 
     // clear any garbage from data register by reading it once
     *((volatile char*) UART_D_REG_ADDR);
     
+    // Display splash screen
+    char splash_screen [] = "Bootloader 1.0\r\n";
+    for(int i=0; i<17; i++)
+        serial_write(splash_screen[i]);
 
     //////////////////// BOOTLOADER ////////////////////
-    if(serial_read_timeout(TIMEOUT) == KEYBYTE)
+    if(serial_read_timeout(TIMEOUT) == KEY_BYTE)
     {
         // Acknowledge KEYBYTE
-        serial_write(ACK);  
-        
+        serial_write(ACK_BYTE);
+
         // Enter Bootloader
         while(true)
         {
@@ -70,21 +72,16 @@ void bootloader()
             uint8_t cmd = serial_read_timeout(-1);
 
             // Acknowledge Command
-            serial_write(ACK);  
+            serial_write(ACK_BYTE);
 
-            if(cmd == 'x')  // exit
+            if(cmd == CMD_EXIT)  // exit
             {
                 break;
             }
-            else if(cmd == 'r')  // reset
-            {
-                break;
-            }
-            else if (cmd == 'c') // copy section
+            else if (cmd == CMD_COPY) // copy section
             {
                 // Section base address and size variables
                 uint32_t base=0, size=0;
-
 
                 // Get base address
                 base |= (uint32_t) serial_read_timeout(-1);         // byte 0
@@ -93,7 +90,7 @@ void bootloader()
                 base |= ((uint32_t) serial_read_timeout(-1)) << 24; // byte 3
                 
                 // Acknowledge section base address reception
-                serial_write(ACK);
+                serial_write(ACK_BYTE);
 
 
                 // Get size
@@ -103,7 +100,7 @@ void bootloader()
                 size |= ((uint32_t) serial_read_timeout(-1)) << 24; // byte 3
 
                 // Acknowledge section size reception
-                serial_write(ACK);
+                serial_write(ACK_BYTE);
 
 
                 // Copy loop
@@ -113,12 +110,11 @@ void bootloader()
                 }
 
                 // Acknowledge Section Data reception
-                serial_write(ACK);
+                serial_write(ACK_BYTE);
             }
-            else
-                break;
         }
     }
 
+    serial_write('B');
     return; // Boot
 }

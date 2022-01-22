@@ -4,10 +4,14 @@
 
 _start:
     la sp, _stack_pointer       # set stack pointer
-    la gp, _global_pointer      # set global pointer
+
+    // Jump to bootloader
     jal bootloader
 
-    // jump to code (absolute address 0x0000000)
-    jalr x0, 0x400(x0)  
+    // Jump to application code
+    la t0, _application
+    jalr x0, 0(t0)
+
 _exit:
     ebreak
+    j _exit
