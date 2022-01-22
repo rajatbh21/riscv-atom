@@ -1,0 +1,9 @@
+#!/bin/bash
+
+######################################################
+## Used to Convert ELF files to veilog hex files
+## Syntax: $ elf2vhex <input elf file> <output vhex file>
+
+RVPREFIX=riscv64-unknown-elf
+
+$RVPREFIX-objcopy -O verilog $1 $2
